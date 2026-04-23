@@ -1,0 +1,165 @@
+;;;; INIT CODE ;;;
+.ORG 0
+; initialize the stack
+LDI R18, HIGH(RAMEND)
+OUT SPH,R18
+LDI R18, LOW(RAMEND)
+OUT SPL,R18
+
+; turn on switches 
+LDI R18, 0b11111000 ; use switches 1-3
+OUT DDRA,R18 ; enable switches 1-3
+COM R18
+OUT PORTA,R18 ; enable pull-up resistors for switches
+
+SBI DDRE,4 ; enable speaker
+
+LDI R18,0xFF
+OUT DDRD,R18 ; enable LEDs
+OUT PORTD,R18 ; turn them off (active low)
+
+LDI R31,0
+
+MAIN:
+
+RCALL DELAY_TENTH_SEC
+RCALL DELAY_TENTH_SEC
+
+IN R18, PINA; Read buttons (port a) into R18
+
+SBRS R18, 0
+RCALL COUNT_UP
+
+SBRS R18, 1
+RCALL COUNT_DOWN
+
+SBIS PINA,2
+RCALL BUTTON3_TASK
+
+RJMP MAIN
+
+COUNT_UP:
+    LDI R17, 25
+    MOV R19, R31
+    SUB R19, R17
+    BRNE STEP_UP
+    LDI R31,0
+	RCALL PLAY_1KHZ_ALARM
+    RJMP REFRESH
+
+STEP_UP:
+    INC R31
+    RJMP REFRESH
+    
+COUNT_DOWN:
+    LDI R17, 0
+    MOV R19, R31
+    SUB R19, R17
+    BRNE STEP_DOWN
+    
+    LDI R31, 25
+	RCALL PLAY_1_5_KHZ_ALARM
+    RJMP REFRESH
+    
+STEP_DOWN:
+    DEC R31
+    RJMP REFRESH
+    
+REFRESH:
+    RCALL DISPLAY_LEDS
+HOLD_WAIT:
+    IN R18, PINA
+    SBRS R18, 0
+    RJMP HOLD_WAIT
+    SBRS R18, 1
+    RJMP HOLD_WAIT
+    RET
+
+
+
+DELAY_500US: ; Dylan
+LDI r21, 86
+d500_o: LDI r20, 30
+d500_i: DEC r20
+BRNE d500_i
+DEC r21
+BRNE d500_o
+RET
+
+DELAY_333US:
+LDI r21, 57
+d333_o: LDI r20, 30
+d333_i: DEC r20
+BRNE d333_i
+DEC r21
+BRNE d333_o
+RET
+
+
+DELAY_TENTH_SEC:
+LDI R16,200
+ts_lp:
+RCALL DELAY_500US
+DEC R16
+BRNE ts_lp
+RET
+
+
+BUTTON3_TASK:      
+    dec R31                
+	RCALL DISPLAY_LEDS
+	RCALL DELAY_TENTH_SEC
+	TST R31
+	BRNE BUTTON3_TASK
+	RCALL PLAY_1KHZ_ALARM
+    RET
+
+PLAY_1KHZ_ALARM:
+    ldi r18,250
+ALARM_1KHZ_LOOP:
+    sbi PORTE,4            
+    RCALL DELAY_500US
+
+    cbi PORTE,4             
+    RCALL DELAY_500US
+
+    dec r18
+    brne ALARM_1KHZ_LOOP
+
+    ret                    
+
+PLAY_1_5_KHZ_ALARM:
+    ldi r18,250
+ALARM_1_5_KHZ_LOOP:
+    sbi PORTE,4            
+	RCALL DELAY_333US
+    cbi PORTE,4             
+	RCALL DELAY_333US
+    dec r18
+    brne ALARM_1_5_KHZ_LOOP
+
+    ret
+
+DISPLAY_LEDS:  ; Roy
+.DEF COUNTER = R31
+.DEF LEDOUT = R30
+LDI LEDOUT,0
+; assume counter is in R31, final value in R30
+; Converts 000abcde to edcba000 by checking if
+; the bit is set in the COUNTER register and if it is,
+; setting the corresponding bit in LEDOUT
+SBRC COUNTER,0
+ORI LEDOUT,0b10000000
+SBRC COUNTER,1
+ORI LEDOUT,0b01000000
+SBRC COUNTER,2
+ORI LEDOUT,0b00100000
+SBRC COUNTER,3
+ORI LEDOUT,0b00010000
+SBRC COUNTER,4
+ORI LEDOUT,0b00001000
+
+COM LEDOUT
+OUT PORTD,LEDOUT
+RET
+
